@@ -1,0 +1,10 @@
+html,
+body,
+#root {
+  height: 100vh;
+  margin: 0;
+  user-select: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
