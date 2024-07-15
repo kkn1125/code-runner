@@ -6,12 +6,16 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { ChangeEvent, useCallback, useEffect, useRef, useState } from "react";
+import {
+  ChangeEvent,
+  KeyboardEvent,
+  SyntheticEvent,
+  useCallback,
+  useRef,
+  useState,
+} from "react";
 import { useRecoilValue, useSetRecoilState } from "recoil";
 import { logQueueState } from "./recoils/log.atom";
-
-const originLog = console.log;
-const originError = console.error;
 
 function App() {
   const logQueue = useRecoilValue(logQueueState);
@@ -20,7 +24,10 @@ function App() {
   const [codeContent, setCodeContent] = useState("");
   const [open, setOpen] = useState(true);
 
-  useEffect(() => {
+  function replaceConsole() {
+    window.originLog = window.console.log;
+    window.originError = window.console.error;
+
     window.console.log = function log(...messages: Messages[]) {
       const timestamp =
         new Date().toLocaleString("ko", {
@@ -41,6 +48,7 @@ function App() {
       setLogQueue((value) => [...value, newMessage]);
       return console.log.bind(this);
     };
+
     window.console.error = function error(...messages: Messages[]) {
       const timestamp =
         new Date().toLocaleString("ko", {
@@ -60,22 +68,38 @@ function App() {
       setLogQueue((value) => [...value, newMessage]);
       return console.error.bind(this);
     };
+  }
 
-    return () => {
-      console.log = originLog;
-      console.error = originError;
-    };
-  }, [setLogQueue]);
+  function revertConsole() {
+    console.log = window.originLog;
+    console.error = window.originError;
+  }
 
   function excute() {
     if (codeContent.length === 0) return;
     // originLog(codeContent);
     const func = () => new Function("", codeContent);
+    let temp;
     try {
+      replaceConsole();
       const result = func();
+      temp =
+        result
+          ?.toString()
+          ?.split("\n")
+          ?.slice(2, -1)
+          ?.filter((_) => _) || [];
       result?.();
     } catch (error) {
       console.error(error);
+    } finally {
+      if (temp instanceof Array && temp.length > 0) {
+        const lastOne = temp[temp.length - 1];
+        if (!lastOne.startsWith("return")) {
+          new Function("", `console.log(${lastOne.replace(/;$/, "")})`)();
+        }
+      }
+      revertConsole();
     }
   }
 
@@ -83,6 +107,13 @@ function App() {
     const target = e.target;
     if (!target) return;
     setCodeContent(target.value);
+  }
+
+  function handleKeyDown(e: KeyboardEvent) {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      console.log("tab");
+    }
   }
 
   function handleOpenLog() {
@@ -184,6 +215,7 @@ function App() {
               overflow: "auto",
             }}
             onChange={handleChangeCode}
+            onKeyDown={handleKeyDown}
           />
         </Box>
         <div>
